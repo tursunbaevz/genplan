@@ -185,17 +185,24 @@ header{
 
 /* ===== TABLET + DESKTOP (≥ 760px): sidebar always visible ===== */
 @media (min-width: 760px) {
-  .app{display:grid;grid-template-rows:var(--header-h) 1fr;grid-template-columns:1fr 280px}
-  header{padding:0 16px;gap:12px}
-  .htitle h1{font-size:15px}
-  .htitle .sub{font-size:11px;letter-spacing:.7px}
+  .app{
+    display:grid;
+    grid-template-rows:var(--header-h) 1fr;
+    grid-template-columns:1fr 280px;
+    grid-template-areas:"header header" "map sidebar"
+  }
+  header{grid-area:header;padding:0 16px;gap:12px}
+  .map-wrap{grid-area:map}
   .sidebar{
+    grid-area:sidebar;
     position:static;width:auto;transform:none;transition:none;
     box-shadow:none;z-index:auto
   }
+  .htitle h1{font-size:15px}
+  .htitle .sub{font-size:11px;letter-spacing:.7px}
   #sb-close, #backdrop, #zone-bar, #btn-menu{display:none !important}
   .hbtn{padding:5px 13px;font-size:12px;min-height:0}
-  .hbtn-icon{display:none}
+  .hbtn-icon{width:28px;padding:0;font-size:16px}
   #zone-strip{padding:14px 16px;cursor:pointer}
   #zone-strip:hover{background:linear-gradient(135deg,#252b44,#303860)}
 }
