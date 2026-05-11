@@ -677,7 +677,7 @@ viewer.addHandler('canvas-click', (ev) => {
 
   // Touch device
   if (inDrawerMode()) {
-    // Phone: tap → highlight + bottom card
+    // Phone portrait: tap → highlight + bottom card
     if (z) {
       ev.preventDefaultAction = true;
       lastZone = zid; setZone(zid); showZoneBar(z);
@@ -685,10 +685,11 @@ viewer.addHandler('canvas-click', (ev) => {
       hideZoneBar(); setZone(null); lastZone = null;
     }
   } else {
-    // Tablet (touch + inline sidebar): tap → highlight + update sidebar strip
+    // Tablet / phone landscape: tap → highlight + open modal directly
     if (z) {
       ev.preventDefaultAction = true;
       lastZone = zid; setZone(zid);
+      openModal(z);
     } else {
       setZone(null); lastZone = null;
     }
