@@ -339,7 +339,7 @@ const ZONE_COLORS = [
   ['zone_social',     [211,105,151], 32],
   ['zone_industrial', [169,123,123], 32],
   ['zone_engineering',[123,122,165], 32],
-  ['zone_transport',  [130,130,155], 30],
+  ['zone_transport',  [130,130,155], 20],
   ['zone_agri',       [252,252,204], 26],
   ['zone_recreation', [133,201,174], 32],
   ['zone_parks',      [12,168,134],  32],
@@ -347,7 +347,7 @@ const ZONE_COLORS = [
   ['zone_cemetery',   [118,142,66],  32],
   ['zone_green_sp',   [136,195,132], 32],
   ['zone_nursery',    [136,170,96],  32],
-  ['zone_water',      [206,246,251], 28],
+  ['zone_water',      [206,246,251], 18],
   ['zone_special',    [225,168,239], 34],
 ];
 
@@ -421,31 +421,41 @@ viewer.addHandler('zoom', () => {
   document.getElementById('zoom-pct').textContent = Math.round((z/home)*100) + '%';
 });
 
-// ===== ZONE DETECTION (color sampling on detect image) =====
+// ===== ZONE DETECTION (per-pixel voting in 5x5 + center-pixel fallback) =====
+function classifyPixel(r, g, b) {
+  let best=null, bestDist=999;
+  for (const [zid, [tr,tg,tb], tol] of ZONE_COLORS) {
+    const d = Math.abs(r-tr)+Math.abs(g-tg)+Math.abs(b-tb);
+    if (d < tol*2 && d < bestDist) { bestDist=d; best=zid; }
+  }
+  return best;
+}
 function detectZone(imgX, imgY) {
   if (!detectData) return null;
-  // Map full-res coords -> detect-image coords
   const dx = Math.round(imgX * detectW / mapW);
   const dy = Math.round(imgY * detectH / mapH);
   if (dx < 0 || dy < 0 || dx >= detectW || dy >= detectH) return null;
 
-  // 5x5 sample average
-  let sr=0, sg=0, sb=0, cnt=0;
+  const votes = {};
   for (let oy=-2; oy<=2; oy++) for (let ox=-2; ox<=2; ox++) {
     const x = dx+ox, y = dy+oy;
     if (x<0||y<0||x>=detectW||y>=detectH) continue;
     const p = (y*detectW + x) * 4;
-    sr += detectData[p]; sg += detectData[p+1]; sb += detectData[p+2]; cnt++;
+    const z = classifyPixel(detectData[p], detectData[p+1], detectData[p+2]);
+    if (z) votes[z] = (votes[z]||0) + 1;
   }
-  if (!cnt) return null;
-  const r=sr/cnt, g=sg/cnt, b=sb/cnt;
 
-  let best=null, bestDist=999;
-  for (const [zid, [tr,tg,tb], tol] of ZONE_COLORS) {
-    const dist = Math.abs(r-tr)+Math.abs(g-tg)+Math.abs(b-tb);
-    if (dist < tol*2 && dist < bestDist) { bestDist=dist; best=zid; }
+  // Plurality with margin: top zone with ≥4 votes and beating runner-up by ≥1
+  const sorted = Object.entries(votes).sort((a,b) => b[1]-a[1]);
+  if (sorted.length) {
+    const [firstZ, firstC] = sorted[0];
+    const secondC = sorted[1] ? sorted[1][1] : 0;
+    if (firstC >= 4 && firstC >= secondC + 1) return firstZ;
   }
-  return best;
+
+  // Fallback: classify the center pixel directly (helps for rare zones with small areas)
+  const p = (dy*detectW + dx) * 4;
+  return classifyPixel(detectData[p], detectData[p+1], detectData[p+2]);
 }
 
 // ===== MASK GENERATION (from detection image) =====
