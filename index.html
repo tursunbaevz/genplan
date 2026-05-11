@@ -10,17 +10,19 @@
 :root{
   --bg:#1a1f2e;--surface:#232838;--border:#2e3650;
   --text:#e8eaf0;--muted:#7a8099;--accent:#4f8ef7;
-  --radius:10px;
+  --radius:10px;--header-h:54px;
 }
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;-webkit-text-size-adjust:100%}
 
-.app{display:grid;grid-template-rows:54px 1fr;grid-template-columns:1fr 320px;height:100vh}
+/* Mobile-first: header on top, map fills, sidebar = drawer */
+.app{display:flex;flex-direction:column;height:100dvh;height:100vh}
 
 /* HEADER */
 header{
-  grid-column:1/-1;background:linear-gradient(135deg,#0f1729,#1a2744);
+  background:linear-gradient(135deg,#0f1729,#1a2744);
   border-bottom:1px solid var(--border);display:flex;align-items:center;
-  padding:0 20px;gap:14px;z-index:10;box-shadow:0 2px 16px rgba(0,0,0,.4)
+  padding:0 12px;gap:10px;z-index:10;box-shadow:0 2px 16px rgba(0,0,0,.4);
+  height:var(--header-h);flex-shrink:0
 }
 .hlogo{
   width:36px;height:36px;border-radius:8px;
@@ -28,28 +30,46 @@ header{
   display:flex;align-items:center;justify-content:center;
   font-size:18px;font-weight:900;color:#fff;flex-shrink:0
 }
-.htitle h1{font-size:15px;font-weight:700;color:#fff;margin-bottom:1px}
-.htitle .sub{font-size:11px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.7px}
-.hcontrols{margin-left:auto;display:flex;gap:6px;align-items:center}
+.htitle{min-width:0;flex:1}
+.htitle h1{font-size:14px;font-weight:700;color:#fff;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.htitle .sub{font-size:10px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hcontrols{margin-left:auto;display:flex;gap:6px;align-items:center;flex-shrink:0}
 .hbtn{
   background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);
-  color:#fff;border-radius:7px;padding:5px 13px;font-size:12px;
-  cursor:pointer;transition:.15s;white-space:nowrap
+  color:#fff;border-radius:7px;padding:6px 12px;font-size:13px;
+  cursor:pointer;transition:.15s;white-space:nowrap;
+  min-height:36px;display:inline-flex;align-items:center;justify-content:center
 }
 .hbtn:hover{background:rgba(255,255,255,.2)}
-#zoom-pct{font-size:12px;color:rgba(255,255,255,.6);min-width:48px;text-align:center}
+.hbtn-icon{width:36px;padding:0;font-size:18px}
+#zoom-pct{font-size:12px;color:rgba(255,255,255,.6);min-width:42px;text-align:center}
 
 /* MAP */
-.map-wrap{position:relative;overflow:hidden;background:#0d1117}
-#osd{position:absolute;inset:0}
+.map-wrap{position:relative;overflow:hidden;background:#0d1117;flex:1;min-height:0}
+#osd{position:absolute;inset:0;touch-action:none}
 #mask-overlay{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .2s}
 #mask-overlay.active{opacity:1}
 
-/* SIDEBAR */
+/* SIDEBAR — drawer by default, side panel on desktop */
 .sidebar{
   background:var(--surface);border-left:1px solid var(--border);
-  overflow-y:auto;display:flex;flex-direction:column
+  overflow-y:auto;display:flex;flex-direction:column;
+  position:fixed;top:0;right:0;bottom:0;width:min(340px,86vw);
+  transform:translateX(100%);transition:transform .25s ease;
+  z-index:60;box-shadow:-12px 0 32px rgba(0,0,0,.5)
 }
+.sidebar.open{transform:translateX(0)}
+#sb-close{
+  position:absolute;top:8px;right:8px;background:transparent;border:none;
+  color:var(--muted);font-size:22px;cursor:pointer;padding:6px 10px;
+  line-height:1;z-index:5
+}
+#sb-close:hover{color:#fff}
+#backdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:55;
+  opacity:0;pointer-events:none;transition:opacity .2s
+}
+#backdrop.active{opacity:1;pointer-events:auto}
 .sidebar::-webkit-scrollbar{width:4px}
 .sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 .sb-sec{padding:14px 16px;border-bottom:1px solid var(--border)}
@@ -58,9 +78,9 @@ header{
   letter-spacing:.9px;color:var(--muted);margin-bottom:10px
 }
 
-/* Zone strip */
+/* Zone strip (top of sidebar) */
 #zone-strip{
-  padding:14px 16px;border-bottom:1px solid var(--border);
+  padding:18px 44px 14px 16px;border-bottom:1px solid var(--border);
   background:linear-gradient(135deg,#1f2438,#2a3050);
   min-height:64px
 }
@@ -69,16 +89,42 @@ header{
 .zs-name{font-size:13px;font-weight:600;color:#fff;line-height:1.3}
 .zs-cat{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-top:2px}
 
+/* Bottom info bar — mobile tap result */
+#zone-bar{
+  position:fixed;left:12px;right:12px;bottom:12px;z-index:40;
+  background:rgba(28,33,52,.96);border:1px solid var(--border);
+  border-radius:14px;padding:12px 14px;backdrop-filter:blur(10px);
+  box-shadow:0 12px 32px rgba(0,0,0,.55);
+  display:none;align-items:center;gap:12px
+}
+#zone-bar.show{display:flex;animation:slideUp .2s ease}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+#zb-icon{font-size:28px;flex-shrink:0}
+#zb-info{flex:1;min-width:0}
+#zb-name{font-size:14px;font-weight:600;color:#fff;line-height:1.25;margin-bottom:2px}
+#zb-cat{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+#zb-open{
+  background:var(--accent);border:none;color:#fff;border-radius:8px;
+  padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;
+  min-height:36px
+}
+#zb-open:hover{background:#5e9bff}
+#zb-close{
+  background:transparent;border:none;color:var(--muted);font-size:20px;
+  cursor:pointer;padding:4px 8px;line-height:1;flex-shrink:0
+}
+#zb-close:hover{color:#fff}
+
 /* Legend items */
 .leg-item{
-  display:flex;align-items:center;gap:9px;padding:5px 6px;
+  display:flex;align-items:center;gap:10px;padding:8px 8px;
   border-radius:6px;cursor:pointer;transition:.15s;margin-bottom:2px;
   border:1px solid transparent
 }
 .leg-item:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.08)}
 .leg-item.active{background:rgba(79,142,247,.12);border-color:rgba(79,142,247,.3)}
 .leg-dot{width:14px;height:14px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.2)}
-.leg-label{font-size:12px;color:var(--text);line-height:1.3}
+.leg-label{font-size:13px;color:var(--text);line-height:1.3}
 
 /* Tooltip */
 #tooltip{
@@ -136,6 +182,29 @@ header{
   border-top-color:var(--accent);border-radius:50%;animation:spin 0.9s linear infinite
 }
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== DESKTOP (≥ 880px) ===== */
+@media (min-width: 880px) {
+  .app{display:grid;grid-template-rows:var(--header-h) 1fr;grid-template-columns:1fr 320px}
+  header{padding:0 20px;gap:14px}
+  .htitle h1{font-size:15px}
+  .htitle .sub{font-size:11px;letter-spacing:.7px}
+  .sidebar{
+    position:static;width:auto;transform:none;transition:none;
+    box-shadow:none;z-index:auto
+  }
+  #sb-close, #backdrop, #zone-bar, #btn-menu{display:none !important}
+  .hbtn{padding:5px 13px;font-size:12px;min-height:0}
+  .hbtn-icon{display:none}
+  #zone-strip{padding:14px 16px}
+}
+
+/* Hide desktop-only zoom-pct on very narrow screens */
+@media (max-width: 420px){
+  .htitle .sub{display:none}
+  #zoom-pct{display:none}
+  header{padding:0 10px;gap:8px}
+}
 </style>
 </head>
 <body>
@@ -147,10 +216,11 @@ header{
     <div class="sub">Генеральный план · Полное разрешение</div>
   </div>
   <div class="hcontrols">
-    <button class="hbtn" id="btn-zoom-out">−</button>
+    <button class="hbtn hbtn-icon" id="btn-zoom-out" aria-label="Уменьшить">−</button>
     <span id="zoom-pct">100%</span>
-    <button class="hbtn" id="btn-zoom-in">+</button>
+    <button class="hbtn hbtn-icon" id="btn-zoom-in" aria-label="Увеличить">+</button>
     <button class="hbtn" id="btn-fit">К размеру</button>
+    <button class="hbtn hbtn-icon" id="btn-menu" aria-label="Меню">☰</button>
   </div>
 </header>
 
@@ -160,7 +230,10 @@ header{
   <div id="loading"><div class="spinner"></div><div>Загрузка карты…</div></div>
 </div>
 
-<div class="sidebar">
+<div id="backdrop"></div>
+
+<div class="sidebar" id="sidebar">
+  <button id="sb-close" aria-label="Закрыть">✕</button>
   <div id="zone-strip">
     <div class="zs-row">
       <div class="zs-icon" id="zs-icon">📍</div>
@@ -182,6 +255,16 @@ header{
       Масштаб оригинала — 1:10 000.
     </div>
   </div>
+</div>
+
+<div id="zone-bar">
+  <div id="zb-icon">📍</div>
+  <div id="zb-info">
+    <div id="zb-name">—</div>
+    <div id="zb-cat">—</div>
+  </div>
+  <button id="zb-open">Подробнее</button>
+  <button id="zb-close" aria-label="Закрыть">✕</button>
 </div>
 </div>
 
@@ -314,10 +397,23 @@ viewer.addHandler('open', () => {
   document.getElementById('loading').classList.add('hidden');
 });
 
+// ===== TOUCH DETECTION =====
+const isTouch = matchMedia('(hover: none) and (pointer: coarse)').matches;
+const isMobile = matchMedia('(max-width: 879px)').matches;
+
 // ===== HEADER ZOOM CONTROLS =====
 document.getElementById('btn-zoom-in').onclick  = () => viewer.viewport.zoomBy(1.5).applyConstraints();
 document.getElementById('btn-zoom-out').onclick = () => viewer.viewport.zoomBy(1/1.5).applyConstraints();
 document.getElementById('btn-fit').onclick      = () => viewer.viewport.goHome();
+
+// ===== SIDEBAR DRAWER (mobile) =====
+const sidebar = document.getElementById('sidebar');
+const backdrop = document.getElementById('backdrop');
+function openSidebar(){ sidebar.classList.add('open'); backdrop.classList.add('active'); }
+function closeSidebar(){ sidebar.classList.remove('open'); backdrop.classList.remove('active'); }
+document.getElementById('btn-menu').onclick = openSidebar;
+document.getElementById('sb-close').onclick = closeSidebar;
+backdrop.onclick = closeSidebar;
 
 viewer.addHandler('zoom', () => {
   const z = viewer.viewport.getZoom(true);
@@ -482,25 +578,45 @@ function hideZoneStrip() {
   document.getElementById('zs-cat').textContent  = 'для отображения зоны';
 }
 
-// ===== MOUSE MOVE/CLICK on viewer =====
-let lastZone = null;
-viewer.element.addEventListener('mousemove', (e) => {
-  const ic = eventToImageCoords(e);
-  if (!ic) return;
-  const zid = detectZone(ic.x, ic.y);
-  if (zid !== lastZone) {
-    lastZone = zid;
-    setZone(zid);
-    if (zid) {
-      const z = ZONES.find(x => x.id === zid);
-      if (z) showTip(e.clientX, e.clientY, z);
-    } else hideTip();
-  } else if (zid) moveTip(e.clientX, e.clientY);
-});
-viewer.element.addEventListener('mouseleave', () => {
-  hideTip(); setZone(null); lastZone = null;
-});
+// ===== BOTTOM ZONE BAR (mobile tap result) =====
+const zoneBar = document.getElementById('zone-bar');
+let activeZoneForBar = null;
+function showZoneBar(zone) {
+  activeZoneForBar = zone;
+  document.getElementById('zb-icon').textContent = zone.icon;
+  document.getElementById('zb-name').textContent = zone.name;
+  document.getElementById('zb-cat').textContent  = zone.cat;
+  zoneBar.classList.add('show');
+}
+function hideZoneBar() {
+  zoneBar.classList.remove('show');
+  activeZoneForBar = null;
+}
+document.getElementById('zb-open').onclick  = () => { if(activeZoneForBar) openModal(activeZoneForBar); };
+document.getElementById('zb-close').onclick = () => { hideZoneBar(); setZone(null); lastZone=null; };
 
+// ===== MOUSE MOVE on viewer (desktop hover only) =====
+let lastZone = null;
+if (!isTouch) {
+  viewer.element.addEventListener('mousemove', (e) => {
+    const ic = eventToImageCoords(e);
+    if (!ic) return;
+    const zid = detectZone(ic.x, ic.y);
+    if (zid !== lastZone) {
+      lastZone = zid;
+      setZone(zid);
+      if (zid) {
+        const z = ZONES.find(x => x.id === zid);
+        if (z) showTip(e.clientX, e.clientY, z);
+      } else hideTip();
+    } else if (zid) moveTip(e.clientX, e.clientY);
+  });
+  viewer.element.addEventListener('mouseleave', () => {
+    hideTip(); setZone(null); lastZone = null;
+  });
+}
+
+// ===== CANVAS CLICK / TAP =====
 viewer.addHandler('canvas-click', (ev) => {
   if (!ev.quick) return;  // ignore drags
   const item = viewer.world.getItemAt(0);
@@ -509,8 +625,22 @@ viewer.addHandler('canvas-click', (ev) => {
   const zid = detectZone(ip.x, ip.y);
   if (zid) {
     const z = ZONES.find(x => x.id === zid);
-    if (z) openModal(z);
+    if (!z) return;
     ev.preventDefaultAction = true;
+    if (isTouch || isMobile) {
+      // Mobile: highlight + show bottom info bar
+      lastZone = zid;
+      setZone(zid);
+      showZoneBar(z);
+    } else {
+      // Desktop: open modal directly
+      openModal(z);
+    }
+  } else if (isTouch || isMobile) {
+    // Tap on empty area → dismiss
+    hideZoneBar();
+    setZone(null);
+    lastZone = null;
   }
 });
 
@@ -542,16 +672,27 @@ ZONES.forEach(zone => {
     <div class="leg-dot" style="background:${zone.color}"></div>
     <span class="leg-label">${zone.name}</span>
   `;
-  item.addEventListener('mouseenter', () => {
-    setZone(zone.id);
-    document.querySelectorAll('.leg-item').forEach(i => i.classList.remove('active'));
-    item.classList.add('active');
+  if (!isTouch) {
+    item.addEventListener('mouseenter', () => {
+      setZone(zone.id);
+      document.querySelectorAll('.leg-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+    });
+    item.addEventListener('mouseleave', () => {
+      setZone(null);
+      item.classList.remove('active');
+    });
+  }
+  item.addEventListener('click', () => {
+    if (isTouch || isMobile) {
+      closeSidebar();
+      setZone(zone.id);
+      lastZone = zone.id;
+      showZoneBar(zone);
+    } else {
+      openModal(zone);
+    }
   });
-  item.addEventListener('mouseleave', () => {
-    setZone(null);
-    item.classList.remove('active');
-  });
-  item.addEventListener('click', () => openModal(zone));
   legendList.appendChild(item);
 });
 </script>
