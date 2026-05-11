@@ -183,10 +183,10 @@ header{
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ===== DESKTOP (≥ 880px) ===== */
-@media (min-width: 880px) {
-  .app{display:grid;grid-template-rows:var(--header-h) 1fr;grid-template-columns:1fr 320px}
-  header{padding:0 20px;gap:14px}
+/* ===== TABLET + DESKTOP (≥ 760px): sidebar always visible ===== */
+@media (min-width: 760px) {
+  .app{display:grid;grid-template-rows:var(--header-h) 1fr;grid-template-columns:1fr 280px}
+  header{padding:0 16px;gap:12px}
   .htitle h1{font-size:15px}
   .htitle .sub{font-size:11px;letter-spacing:.7px}
   .sidebar{
@@ -196,7 +196,14 @@ header{
   #sb-close, #backdrop, #zone-bar, #btn-menu{display:none !important}
   .hbtn{padding:5px 13px;font-size:12px;min-height:0}
   .hbtn-icon{display:none}
-  #zone-strip{padding:14px 16px}
+  #zone-strip{padding:14px 16px;cursor:pointer}
+  #zone-strip:hover{background:linear-gradient(135deg,#252b44,#303860)}
+}
+
+/* ===== LARGER (≥ 960px): wider sidebar ===== */
+@media (min-width: 960px) {
+  .app{grid-template-columns:1fr 320px}
+  header{padding:0 20px;gap:14px}
 }
 
 /* Hide desktop-only zoom-pct on very narrow screens */
@@ -397,9 +404,11 @@ viewer.addHandler('open', () => {
   document.getElementById('loading').classList.add('hidden');
 });
 
-// ===== TOUCH DETECTION =====
+// ===== TOUCH + LAYOUT DETECTION =====
 const isTouch = matchMedia('(hover: none) and (pointer: coarse)').matches;
-const isMobile = matchMedia('(max-width: 879px)').matches;
+const hasInlineSidebar = () => matchMedia('(min-width: 760px)').matches;
+// "drawer mode" = no inline sidebar (small phones)
+const inDrawerMode = () => !hasInlineSidebar();
 
 // ===== HEADER ZOOM CONTROLS =====
 document.getElementById('btn-zoom-in').onclick  = () => viewer.viewport.zoomBy(1.5).applyConstraints();
@@ -633,25 +642,39 @@ viewer.addHandler('canvas-click', (ev) => {
   if (!item) return;
   const ip = item.viewportToImageCoordinates(viewer.viewport.pointFromPixel(ev.position));
   const zid = detectZone(ip.x, ip.y);
-  if (zid) {
-    const z = ZONES.find(x => x.id === zid);
-    if (!z) return;
-    ev.preventDefaultAction = true;
-    if (isTouch || isMobile) {
-      // Mobile: highlight + show bottom info bar
-      lastZone = zid;
-      setZone(zid);
-      showZoneBar(z);
-    } else {
-      // Desktop: open modal directly
-      openModal(z);
-    }
-  } else if (isTouch || isMobile) {
-    // Tap on empty area → dismiss
-    hideZoneBar();
-    setZone(null);
-    lastZone = null;
+  const z = zid ? ZONES.find(x => x.id === zid) : null;
+
+  if (!isTouch) {
+    // Desktop (mouse): click → modal directly
+    if (z) { openModal(z); ev.preventDefaultAction = true; }
+    return;
   }
+
+  // Touch device
+  if (inDrawerMode()) {
+    // Phone: tap → highlight + bottom card
+    if (z) {
+      ev.preventDefaultAction = true;
+      lastZone = zid; setZone(zid); showZoneBar(z);
+    } else {
+      hideZoneBar(); setZone(null); lastZone = null;
+    }
+  } else {
+    // Tablet (touch + inline sidebar): tap → highlight + update sidebar strip
+    if (z) {
+      ev.preventDefaultAction = true;
+      lastZone = zid; setZone(zid);
+    } else {
+      setZone(null); lastZone = null;
+    }
+  }
+});
+
+// Make sidebar zone-strip clickable on tablet (tap selected zone → open modal)
+document.getElementById('zone-strip').addEventListener('click', () => {
+  if (!currentZone) return;
+  const z = ZONES.find(x => x.id === currentZone);
+  if (z) openModal(z);
 });
 
 // ===== MODAL =====
@@ -694,12 +717,14 @@ ZONES.forEach(zone => {
     });
   }
   item.addEventListener('click', () => {
-    if (isTouch || isMobile) {
+    if (isTouch && inDrawerMode()) {
+      // Phone: close drawer, show bottom card
       closeSidebar();
       setZone(zone.id);
       lastZone = zone.id;
       showZoneBar(zone);
     } else {
+      // Desktop / tablet: open modal directly
       openModal(zone);
     }
   });
