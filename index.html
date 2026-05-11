@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Генплан Бишкека 2050 — Интерактивная карта зон</title>
+<script src="vendor/openseadragon/openseadragon.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#1a1f2e;--surface:#232838;--border:#2e3650;
+  --text:#e8eaf0;--muted:#7a8099;--accent:#4f8ef7;
+  --radius:10px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
+
+.app{display:grid;grid-template-rows:54px 1fr;grid-template-columns:1fr 320px;height:100vh}
+
+/* HEADER */
+header{
+  grid-column:1/-1;background:linear-gradient(135deg,#0f1729,#1a2744);
+  border-bottom:1px solid var(--border);display:flex;align-items:center;
+  padding:0 20px;gap:14px;z-index:10;box-shadow:0 2px 16px rgba(0,0,0,.4)
+}
+.hlogo{
+  width:36px;height:36px;border-radius:8px;
+  background:linear-gradient(135deg,#4f8ef7,#7b5ea7);
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:900;color:#fff;flex-shrink:0
+}
+.htitle h1{font-size:15px;font-weight:700;color:#fff;margin-bottom:1px}
+.htitle .sub{font-size:11px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.7px}
+.hcontrols{margin-left:auto;display:flex;gap:6px;align-items:center}
+.hbtn{
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);
+  color:#fff;border-radius:7px;padding:5px 13px;font-size:12px;
+  cursor:pointer;transition:.15s;white-space:nowrap
+}
+.hbtn:hover{background:rgba(255,255,255,.2)}
+#zoom-pct{font-size:12px;color:rgba(255,255,255,.6);min-width:48px;text-align:center}
+
+/* MAP */
+.map-wrap{position:relative;overflow:hidden;background:#0d1117}
+#osd{position:absolute;inset:0}
+#mask-overlay{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .2s}
+#mask-overlay.active{opacity:1}
+
+/* SIDEBAR */
+.sidebar{
+  background:var(--surface);border-left:1px solid var(--border);
+  overflow-y:auto;display:flex;flex-direction:column
+}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.sb-sec{padding:14px 16px;border-bottom:1px solid var(--border)}
+.sb-sec h3{
+  font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.9px;color:var(--muted);margin-bottom:10px
+}
+
+/* Zone strip */
+#zone-strip{
+  padding:14px 16px;border-bottom:1px solid var(--border);
+  background:linear-gradient(135deg,#1f2438,#2a3050);
+  min-height:64px
+}
+.zs-row{display:flex;align-items:center;gap:10px}
+.zs-icon{font-size:24px}
+.zs-name{font-size:13px;font-weight:600;color:#fff;line-height:1.3}
+.zs-cat{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-top:2px}
+
+/* Legend items */
+.leg-item{
+  display:flex;align-items:center;gap:9px;padding:5px 6px;
+  border-radius:6px;cursor:pointer;transition:.15s;margin-bottom:2px;
+  border:1px solid transparent
+}
+.leg-item:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.08)}
+.leg-item.active{background:rgba(79,142,247,.12);border-color:rgba(79,142,247,.3)}
+.leg-dot{width:14px;height:14px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.2)}
+.leg-label{font-size:12px;color:var(--text);line-height:1.3}
+
+/* Tooltip */
+#tooltip{
+  position:fixed;background:rgba(20,25,40,.96);border:1px solid var(--border);
+  border-radius:8px;padding:10px 12px;max-width:260px;pointer-events:none;
+  opacity:0;transition:opacity .12s;z-index:100;backdrop-filter:blur(8px);
+  box-shadow:0 8px 24px rgba(0,0,0,.6)
+}
+#tooltip.show{opacity:1}
+.tt-icon{font-size:18px;margin-bottom:4px}
+.tt-name{font-size:13px;font-weight:600;color:#fff;margin-bottom:2px}
+.tt-cat{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.tt-desc{font-size:11px;color:var(--text);line-height:1.4;opacity:.85}
+
+/* Modal */
+#modal-ov{
+  position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);
+  display:none;align-items:center;justify-content:center;z-index:200
+}
+#modal-ov.open{display:flex}
+#modal{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  width:min(520px,90vw);max-height:80vh;overflow-y:auto;
+  box-shadow:0 24px 48px rgba(0,0,0,.6)
+}
+.m-hdr{display:flex;align-items:center;gap:14px;padding:18px 20px;border-bottom:1px solid var(--border)}
+.m-icon-wrap{
+  width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-size:26px;flex-shrink:0
+}
+.m-info{flex:1;min-width:0}
+.m-name{font-size:17px;font-weight:700;color:#fff;line-height:1.25;margin-bottom:5px}
+.m-badge{display:inline-block;padding:3px 9px;border-radius:6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+.m-close{
+  background:transparent;border:none;color:var(--muted);font-size:22px;cursor:pointer;
+  padding:0 4px;line-height:1;align-self:flex-start
+}
+.m-close:hover{color:#fff}
+.m-body{padding:18px 20px}
+.m-desc{font-size:13px;line-height:1.55;color:var(--text);margin-bottom:14px}
+.m-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.m-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.m-card-key{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px}
+.m-card-val{font-size:13px;font-weight:600;color:#fff}
+
+/* Loading */
+#loading{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(13,17,23,.85);z-index:50;flex-direction:column;gap:14px;
+  font-size:13px;color:var(--muted)
+}
+#loading.hidden{display:none}
+.spinner{
+  width:42px;height:42px;border:3px solid rgba(255,255,255,.1);
+  border-top-color:var(--accent);border-radius:50%;animation:spin 0.9s linear infinite
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="hlogo">Б</div>
+  <div class="htitle">
+    <h1>Генплан Бишкека 2050</h1>
+    <div class="sub">Генеральный план · Полное разрешение</div>
+  </div>
+  <div class="hcontrols">
+    <button class="hbtn" id="btn-zoom-out">−</button>
+    <span id="zoom-pct">100%</span>
+    <button class="hbtn" id="btn-zoom-in">+</button>
+    <button class="hbtn" id="btn-fit">К размеру</button>
+  </div>
+</header>
+
+<div class="map-wrap">
+  <div id="osd"></div>
+  <canvas id="mask-overlay"></canvas>
+  <div id="loading"><div class="spinner"></div><div>Загрузка карты…</div></div>
+</div>
+
+<div class="sidebar">
+  <div id="zone-strip">
+    <div class="zs-row">
+      <div class="zs-icon" id="zs-icon">📍</div>
+      <div>
+        <div class="zs-name" id="zs-name">Наведите на карту</div>
+        <div class="zs-cat" id="zs-cat">для отображения зоны</div>
+      </div>
+    </div>
+  </div>
+  <div class="sb-sec">
+    <h3>Функциональные зоны</h3>
+    <div id="legend-list"></div>
+  </div>
+  <div class="sb-sec">
+    <h3>О документе</h3>
+    <div style="font-size:12px;color:var(--muted);line-height:1.7">
+      Источник: Генеральный план города Бишкек, утверждённый.<br>
+      Горизонт планирования — 2050 г.<br>
+      Масштаб оригинала — 1:10 000.
+    </div>
+  </div>
+</div>
+</div>
+
+<div id="tooltip">
+  <div class="tt-icon" id="tt-icon"></div>
+  <div class="tt-name" id="tt-name"></div>
+  <div class="tt-cat" id="tt-cat"></div>
+  <div class="tt-desc" id="tt-desc"></div>
+</div>
+
+<div id="modal-ov">
+  <div id="modal">
+    <div class="m-hdr">
+      <div class="m-icon-wrap" id="m-icon-wrap"><span id="m-icon">📍</span></div>
+      <div class="m-info">
+        <div class="m-name" id="m-name"></div>
+        <span class="m-badge" id="m-badge"></span>
+      </div>
+      <button class="m-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="m-body">
+      <div class="m-desc" id="m-desc"></div>
+      <div class="m-grid">
+        <div class="m-card">
+          <div class="m-card-key">Категория</div>
+          <div class="m-card-val" id="m-cat"></div>
+        </div>
+        <div class="m-card">
+          <div class="m-card-key">Горизонт</div>
+          <div class="m-card-val">до 2050 г.</div>
+        </div>
+        <div class="m-card" style="grid-column:1/-1">
+          <div class="m-card-key">Документ</div>
+          <div class="m-card-val" style="font-size:12px;font-weight:400;color:var(--muted)">Генеральный план города Бишкек, утверждённый</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== ZONE DATA =====
+const ZONES = [
+  {id:"zone_individual", name:"Индивидуальные жилые дома", desc:"Зона застройки индивидуальными жилыми домами. Частные дома, коттеджи, усадьбы с приусадебными участками.", color:"#f9e77c", icon:"🏡", cat:"Жилая зона"},
+  {id:"zone_low",        name:"Малоэтажные жилые дома (до 4 эт.)", desc:"Зона застройки малоэтажными жилыми домами до 4 этажей, включая мансардный. Таунхаусы, блокированные дома.", color:"#edb051", icon:"🏘️", cat:"Жилая зона"},
+  {id:"zone_mid",        name:"Среднеэтажные жилые дома (5–8 эт.)", desc:"Зона застройки среднеэтажными жилыми домами от 5 до 8 этажей. Типичная панельная застройка советского периода.", color:"#eb9760", icon:"🏢", cat:"Жилая зона"},
+  {id:"zone_high",       name:"Многоэтажные жилые дома (9+ эт.)", desc:"Зона застройки многоэтажными домами 9 этажей и более. Развитая инфраструктура, высокая плотность населения.", color:"#f86f6f", icon:"🏙️", cat:"Жилая зона"},
+  {id:"zone_tower",      name:"Высотные жилые дома (14+ эт.)", desc:"Зона застройки высотными жилыми домами более 14 этажей. Современные жилые комплексы с подземными паркингами.", color:"#e35145", icon:"🏗️", cat:"Жилая зона"},
+  {id:"zone_mixed",      name:"Многофункц. общественно-деловая зона", desc:"Административные здания, офисы, торговые центры, гостиницы, объекты культуры и досуга.", color:"#b058ae", icon:"🏛️", cat:"Общественная"},
+  {id:"zone_social",     name:"Специализированная общественная застройка", desc:"Больницы, поликлиники, школы, университеты, детские сады, спортивные комплексы и объекты соцобслуживания.", color:"#d36997", icon:"🏥", cat:"Общественная"},
+  {id:"zone_industrial", name:"Производственная / коммунально-складская", desc:"Промышленные предприятия, производственные базы, склады, коммунально-хозяйственные и логистические объекты.", color:"#a97b7b", icon:"🏭", cat:"Производственная"},
+  {id:"zone_engineering",name:"Инженерная инфраструктура", desc:"Объекты водоснабжения, теплоснабжения, электроснабжения, газоснабжения, очистные и насосные станции.", color:"#7b7aa5", icon:"⚡", cat:"Инфраструктура"},
+  {id:"zone_transport",  name:"Транспортная инфраструктура", desc:"Дороги, улицы, развязки, автовокзалы, железная дорога, аэропорт и прилегающие транспортные территории.", color:"#828299", icon:"🚗", cat:"Транспорт"},
+  {id:"zone_agri",       name:"Сельскохозяйственное использование", desc:"Пашни, огороды, садовые участки, фермерские хозяйства в пригородных и переходных зонах.", color:"#fcfccc", icon:"🌾", cat:"Сельскохозяйственная"},
+  {id:"zone_recreation", name:"Рекреационная зона", desc:"Зоны отдыха, туризма, санатории, дачные кооперативы, базы отдыха, территории загородного отдыха.", color:"#85c9ae", icon:"🌿", cat:"Рекреационная"},
+  {id:"zone_parks",      name:"Парки, скверы, бульвары, городские леса", desc:"Озеленённые территории общего пользования: городские парки, скверы, бульвары, аллеи, городские леса.", color:"#0ca886", icon:"🌳", cat:"Зелёные зоны"},
+  {id:"zone_rest",       name:"Зона отдыха у воды", desc:"Рекреационные зоны у водоёмов, пляжи, зоны пикника, набережные, места активного отдыха горожан.", color:"#70bdd3", icon:"🏖️", cat:"Рекреационная"},
+  {id:"zone_cemetery",   name:"Зона кладбищ", desc:"Действующие и проектируемые места захоронений, ритуальные объекты и прилегающие территории.", color:"#768e42", icon:"⛪", cat:"Специальная"},
+  {id:"zone_green_sp",   name:"Озеленение специального назначения", desc:"Защитные и санитарно-защитные полосы, буферное озеленение вдоль дорог и промышленных предприятий.", color:"#88c384", icon:"🌱", cat:"Зелёные зоны"},
+  {id:"zone_nursery",    name:"Питомники (озеленение)", desc:"Питомники деревьев и кустарников, хозяйства по выращиванию посадочного материала для озеленения города.", color:"#88aa60", icon:"🪴", cat:"Зелёные зоны"},
+  {id:"zone_water",      name:"Зона акваторий", desc:"Водохранилища, реки, каналы, пруды, водоёмы. Зоны с особым водоохранным режимом использования.", color:"#cef6fb", icon:"💧", cat:"Водные объекты"},
+  {id:"zone_special",    name:"Спец. назначение / переработка отходов", desc:"Полигоны ТБО, зоны складирования и переработки отходов, объекты специального режимного назначения.", color:"#e1a8ef", icon:"♻️", cat:"Специальная"},
+];
+
+const ZONE_COLORS = [
+  ['zone_individual', [249,231,124], 32],
+  ['zone_low',        [237,176,81],  32],
+  ['zone_mid',        [235,151,96],  32],
+  ['zone_high',       [248,111,111], 32],
+  ['zone_tower',      [227,81,69],   32],
+  ['zone_mixed',      [176,88,174],  32],
+  ['zone_social',     [211,105,151], 32],
+  ['zone_industrial', [169,123,123], 32],
+  ['zone_engineering',[123,122,165], 32],
+  ['zone_transport',  [130,130,155], 30],
+  ['zone_agri',       [252,252,204], 26],
+  ['zone_recreation', [133,201,174], 32],
+  ['zone_parks',      [12,168,134],  32],
+  ['zone_rest',       [112,189,211], 32],
+  ['zone_cemetery',   [118,142,66],  32],
+  ['zone_green_sp',   [136,195,132], 32],
+  ['zone_nursery',    [136,170,96],  32],
+  ['zone_water',      [206,246,251], 28],
+  ['zone_special',    [225,168,239], 34],
+];
+
+// ===== DETECTION IMAGE (low-res copy for color sampling + mask generation) =====
+let detectData = null;   // ImageData of detect.jpg
+let detectW = 0, detectH = 0;
+let mapW = 0, mapH = 0;  // OSD image dimensions (full res)
+
+const detectImg = new Image();
+detectImg.onload = () => {
+  const oc = document.createElement('canvas');
+  oc.width = detectImg.naturalWidth;
+  oc.height = detectImg.naturalHeight;
+  const octx = oc.getContext('2d', {willReadFrequently:true});
+  octx.drawImage(detectImg, 0, 0);
+  detectData = octx.getImageData(0, 0, oc.width, oc.height).data;
+  detectW = oc.width;
+  detectH = oc.height;
+  console.log('Detection image loaded:', detectW, 'x', detectH);
+};
+detectImg.src = 'detect.jpg';
+
+// ===== OPENSEADRAGON VIEWER =====
+const viewer = OpenSeadragon({
+  id: 'osd',
+  prefixUrl: 'vendor/openseadragon/images/',
+  tileSources: 'tiles/map.dzi',
+  showNavigationControl: false,
+  gestureSettingsMouse: { clickToZoom: false, dblClickToZoom: true },
+  visibilityRatio: 0.5,
+  minZoomImageRatio: 0.6,
+  maxZoomPixelRatio: 2.5,
+  animationTime: 0.6,
+  blendTime: 0.1,
+  immediateRender: false,
+  preserveViewport: true,
+  imageLoaderLimit: 6,
+});
+
+viewer.addHandler('open', () => {
+  const item = viewer.world.getItemAt(0);
+  if (item) {
+    const sz = item.getContentSize();
+    mapW = sz.x; mapH = sz.y;
+    console.log('Map size:', mapW, 'x', mapH);
+  }
+  document.getElementById('loading').classList.add('hidden');
+});
+
+// ===== HEADER ZOOM CONTROLS =====
+document.getElementById('btn-zoom-in').onclick  = () => viewer.viewport.zoomBy(1.5).applyConstraints();
+document.getElementById('btn-zoom-out').onclick = () => viewer.viewport.zoomBy(1/1.5).applyConstraints();
+document.getElementById('btn-fit').onclick      = () => viewer.viewport.goHome();
+
+viewer.addHandler('zoom', () => {
+  const z = viewer.viewport.getZoom(true);
+  const home = viewer.viewport.getHomeZoom();
+  document.getElementById('zoom-pct').textContent = Math.round((z/home)*100) + '%';
+});
+
+// ===== ZONE DETECTION (color sampling on detect image) =====
+function detectZone(imgX, imgY) {
+  if (!detectData) return null;
+  // Map full-res coords -> detect-image coords
+  const dx = Math.round(imgX * detectW / mapW);
+  const dy = Math.round(imgY * detectH / mapH);
+  if (dx < 0 || dy < 0 || dx >= detectW || dy >= detectH) return null;
+
+  // 5x5 sample average
+  let sr=0, sg=0, sb=0, cnt=0;
+  for (let oy=-2; oy<=2; oy++) for (let ox=-2; ox<=2; ox++) {
+    const x = dx+ox, y = dy+oy;
+    if (x<0||y<0||x>=detectW||y>=detectH) continue;
+    const p = (y*detectW + x) * 4;
+    sr += detectData[p]; sg += detectData[p+1]; sb += detectData[p+2]; cnt++;
+  }
+  if (!cnt) return null;
+  const r=sr/cnt, g=sg/cnt, b=sb/cnt;
+
+  let best=null, bestDist=999;
+  for (const [zid, [tr,tg,tb], tol] of ZONE_COLORS) {
+    const dist = Math.abs(r-tr)+Math.abs(g-tg)+Math.abs(b-tb);
+    if (dist < tol*2 && dist < bestDist) { bestDist=dist; best=zid; }
+  }
+  return best;
+}
+
+// ===== MASK GENERATION (from detection image) =====
+const maskCache = {};  // zoneId -> HTMLCanvasElement
+
+function getMaskCanvas(zoneId) {
+  if (maskCache[zoneId]) return maskCache[zoneId];
+  if (!detectData) return null;
+  const entry = ZONE_COLORS.find(z => z[0] === zoneId);
+  if (!entry) return null;
+  const [, [tr,tg,tb], tol] = entry;
+  const zone = ZONES.find(z => z.id === zoneId);
+  const hex = zone.color;
+  const cr = parseInt(hex.slice(1,3),16);
+  const cg = parseInt(hex.slice(3,5),16);
+  const cb = parseInt(hex.slice(5,7),16);
+
+  const c = document.createElement('canvas');
+  c.width = detectW; c.height = detectH;
+  const cx = c.getContext('2d');
+  const out = cx.createImageData(detectW, detectH);
+  const tol2 = tol*2;
+  for (let i=0; i<detectData.length; i+=4) {
+    const r=detectData[i], g=detectData[i+1], b=detectData[i+2];
+    if (Math.abs(r-tr)+Math.abs(g-tg)+Math.abs(b-tb) < tol2) {
+      out.data[i]=cr; out.data[i+1]=cg; out.data[i+2]=cb; out.data[i+3]=170;
+    }
+  }
+  cx.putImageData(out, 0, 0);
+  maskCache[zoneId] = c;
+  return c;
+}
+
+// ===== MASK OVERLAY (canvas synced to OSD viewport) =====
+const maskOv = document.getElementById('mask-overlay');
+const maskCtx = maskOv.getContext('2d');
+let currentZone = null;
+
+function resizeMaskOv() {
+  const r = maskOv.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  maskOv.width  = r.width * dpr;
+  maskOv.height = r.height * dpr;
+  maskOv.style.width = r.width + 'px';
+  maskOv.style.height = r.height + 'px';
+  maskCtx.setTransform(dpr,0,0,dpr,0,0);
+  drawMask();
+}
+
+function drawMask() {
+  maskCtx.clearRect(0, 0, maskOv.width, maskOv.height);
+  if (!currentZone || !mapW) return;
+  const m = getMaskCanvas(currentZone);
+  if (!m) return;
+
+  // Get image rectangle in screen pixels via OSD viewport
+  const item = viewer.world.getItemAt(0);
+  if (!item) return;
+  const tlImg = new OpenSeadragon.Point(0, 0);
+  const brImg = new OpenSeadragon.Point(mapW, mapH);
+  const tlVp = item.imageToViewportCoordinates(tlImg);
+  const brVp = item.imageToViewportCoordinates(brImg);
+  const tlPx = viewer.viewport.pixelFromPoint(tlVp, true);
+  const brPx = viewer.viewport.pixelFromPoint(brVp, true);
+  const x = tlPx.x, y = tlPx.y;
+  const w = brPx.x - tlPx.x, h = brPx.y - tlPx.y;
+  maskCtx.drawImage(m, x, y, w, h);
+}
+
+viewer.addHandler('update-viewport', drawMask);
+viewer.addHandler('animation', drawMask);
+window.addEventListener('resize', resizeMaskOv);
+setTimeout(resizeMaskOv, 50);
+
+function setZone(zoneId) {
+  if (currentZone === zoneId) return;
+  currentZone = zoneId;
+  if (zoneId) {
+    maskOv.classList.add('active');
+    const z = ZONES.find(x => x.id === zoneId);
+    if (z) updateZoneStrip(z);
+  } else {
+    maskOv.classList.remove('active');
+    hideZoneStrip();
+  }
+  drawMask();
+}
+
+// ===== POINTER -> IMAGE COORDS =====
+function eventToImageCoords(ev) {
+  if (!mapW) return null;
+  const item = viewer.world.getItemAt(0);
+  if (!item) return null;
+  const rect = viewer.element.getBoundingClientRect();
+  const px = new OpenSeadragon.Point(ev.clientX - rect.left, ev.clientY - rect.top);
+  const vp = viewer.viewport.pointFromPixel(px);
+  const ip = item.viewportToImageCoordinates(vp);
+  return { x: ip.x, y: ip.y };
+}
+
+// ===== TOOLTIP =====
+const tooltip = document.getElementById('tooltip');
+function showTip(clientX, clientY, zone) {
+  document.getElementById('tt-icon').textContent = zone.icon;
+  document.getElementById('tt-name').textContent = zone.name;
+  document.getElementById('tt-cat').textContent = zone.cat;
+  document.getElementById('tt-desc').textContent = zone.desc.substring(0,120) + '…';
+  tooltip.classList.add('show');
+  moveTip(clientX, clientY);
+}
+function moveTip(cx, cy) {
+  const pad=16;
+  let x=cx+pad, y=cy+pad;
+  if(x+280>window.innerWidth) x = cx-280-pad;
+  if(y+150>window.innerHeight) y = cy-150-pad;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top  = y + 'px';
+}
+function hideTip() { tooltip.classList.remove('show'); }
+
+// ===== ZONE STRIP =====
+function updateZoneStrip(zone) {
+  document.getElementById('zs-icon').textContent = zone.icon;
+  document.getElementById('zs-name').textContent = zone.name;
+  document.getElementById('zs-cat').textContent  = zone.cat;
+}
+function hideZoneStrip() {
+  document.getElementById('zs-icon').textContent = '📍';
+  document.getElementById('zs-name').textContent = 'Наведите на карту';
+  document.getElementById('zs-cat').textContent  = 'для отображения зоны';
+}
+
+// ===== MOUSE MOVE/CLICK on viewer =====
+let lastZone = null;
+viewer.element.addEventListener('mousemove', (e) => {
+  const ic = eventToImageCoords(e);
+  if (!ic) return;
+  const zid = detectZone(ic.x, ic.y);
+  if (zid !== lastZone) {
+    lastZone = zid;
+    setZone(zid);
+    if (zid) {
+      const z = ZONES.find(x => x.id === zid);
+      if (z) showTip(e.clientX, e.clientY, z);
+    } else hideTip();
+  } else if (zid) moveTip(e.clientX, e.clientY);
+});
+viewer.element.addEventListener('mouseleave', () => {
+  hideTip(); setZone(null); lastZone = null;
+});
+
+viewer.addHandler('canvas-click', (ev) => {
+  if (!ev.quick) return;  // ignore drags
+  const item = viewer.world.getItemAt(0);
+  if (!item) return;
+  const ip = item.viewportToImageCoordinates(viewer.viewport.pointFromPixel(ev.position));
+  const zid = detectZone(ip.x, ip.y);
+  if (zid) {
+    const z = ZONES.find(x => x.id === zid);
+    if (z) openModal(z);
+    ev.preventDefaultAction = true;
+  }
+});
+
+// ===== MODAL =====
+function openModal(zone) {
+  document.getElementById('m-icon').textContent = zone.icon;
+  document.getElementById('m-icon-wrap').style.background = zone.color + '33';
+  document.getElementById('m-name').textContent = zone.name;
+  document.getElementById('m-badge').textContent = zone.cat;
+  document.getElementById('m-badge').style.background = zone.color + '33';
+  document.getElementById('m-badge').style.color = zone.color;
+  document.getElementById('m-desc').textContent = zone.desc;
+  document.getElementById('m-cat').textContent  = zone.cat;
+  document.getElementById('modal-ov').classList.add('open');
+}
+function closeModal() { document.getElementById('modal-ov').classList.remove('open'); }
+document.getElementById('modal-ov').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modal-ov')) closeModal();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+// ===== LEGEND =====
+const legendList = document.getElementById('legend-list');
+ZONES.forEach(zone => {
+  const item = document.createElement('div');
+  item.className = 'leg-item';
+  item.dataset.id = zone.id;
+  item.innerHTML = `
+    <div class="leg-dot" style="background:${zone.color}"></div>
+    <span class="leg-label">${zone.name}</span>
+  `;
+  item.addEventListener('mouseenter', () => {
+    setZone(zone.id);
+    document.querySelectorAll('.leg-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+  });
+  item.addEventListener('mouseleave', () => {
+    setZone(null);
+    item.classList.remove('active');
+  });
+  item.addEventListener('click', () => openModal(zone));
+  legendList.appendChild(item);
+});
+</script>
+</body>
+</html>
